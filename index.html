@@ -26,7 +26,10 @@
 </head>
 <body>
 <div id="layout">
-  <canvas id="canvas" width="256" height="256"></canvas>
+  <div>
+    <canvas id="canvas" width="256" height="256"></canvas>
+    <canvas id="debugCanvas" width="256" height="256" style="display:none;margin-top:5px;"></canvas>
+  </div>
   <div id="stats">
     <div>Durchschnittlicher Score: <span id="avgScore">0</span></div>
     <div>High: <span id="highCount">0</span></div>
@@ -41,11 +44,14 @@
   <label>Geschwindigkeit: <input type="range" id="simSpeed" min="1" max="5" step="1" value="1"><span id="simSpeedVal"></span></label>
   <button id="restart">Neu starten</button>
 </div>
+<script src="worm_debug.js"></script>
 <script>
 (function(){
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
+  const debugCanvas = document.getElementById('debugCanvas');
   const SIZE = 256;
+  if(window.wormDebug) wormDebug.init(debugCanvas);
 
   const valueElems = {
     wormCount: document.getElementById('wormCountVal'),
@@ -263,6 +269,17 @@
     requestAnimationFrame(step);
   }
   document.getElementById('restart').addEventListener('click',reset);
+  canvas.addEventListener('click',e=>{
+    const rect=canvas.getBoundingClientRect();
+    const x=Math.floor(e.clientX-rect.left);
+    const y=Math.floor(e.clientY-rect.top);
+    let idx=headMap.get(`${x},${y}`);
+    if(idx===undefined) idx=tailMap.get(`${x},${y}`);
+    if(idx!==undefined){
+      document.getElementById('debugCanvas').style.display='block';
+      wormDebug.show(worms[idx]);
+    }
+  });
   reset();
   requestAnimationFrame(step);
 })();
