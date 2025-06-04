@@ -172,26 +172,40 @@
     w.x=nx;w.y=ny;
   }
   function transferProgram(from,to){
-    const fraction=window.simParams.transfer;
+    const fraction = window.simParams.transfer;
     transferCount++;
-    const countProg=Math.floor(from.program.length*fraction);
-    for(let i=0;i<countProg;i++){
-      const idx=randInt(from.program.length);
-      to.program[idx]=Object.assign({},from.program[idx]);
-      if(Math.random()<window.simParams.mutation){
-        to.program[idx]={alpha:Math.random(),src1:randInt(30),src2:randInt(30),dst:9+randInt(23)};
+    for(let i = 0; i < from.program.length; i++){
+      const srcIns = from.program[i];
+      const destIns = {alpha: srcIns.alpha, src1: srcIns.src1, src2: srcIns.src2, dst: srcIns.dst};
+      if(Math.random() < 1 - fraction){
+        destIns.alpha = Math.min(1, Math.max(0, destIns.alpha + Math.pow(randFloat(-1,1),3)));
       }
-    }
-    const countData=Math.floor((32-2)*fraction);
-    for(let i=0;i<countData;i++){
-      const idx=2+randInt(30);
-      to.data[idx]=from.data[idx];
-      if(Math.random()<window.simParams.mutation && idx>=9 && idx<=29){
-        to.data[idx]=randFloat(-1,1);
+      if(Math.random() < 1 - fraction){
+        destIns.src1 = randInt(30);
       }
+      if(Math.random() < 1 - fraction){
+        destIns.src2 = randInt(30);
+      }
+      if(Math.random() < 1 - fraction){
+        destIns.dst = 9 + randInt(23);
+      }
+      to.program[i] = destIns;
     }
-    to.x=randFloat(0,SIZE);to.y=randFloat(0,SIZE);to.tailX=to.x;to.tailY=to.y;
-    to.dirAngle=to.dir;
+    for(let i = 2; i < 32; i++){
+      let val = from.data[i];
+      if(Math.random() < 1 - fraction){
+        val += Math.pow(randFloat(-1,1),3);
+        if(i>=9 && i<=29){
+          val = Math.min(1, Math.max(-1, val));
+        }
+      }
+      to.data[i] = val;
+    }
+    to.x = randFloat(0, SIZE);
+    to.y = randFloat(0, SIZE);
+    to.tailX = to.x;
+    to.tailY = to.y;
+    to.dirAngle = to.dir;
   }
   function draw(){
     ctx.clearRect(0,0,SIZE,SIZE);
