@@ -31,7 +31,6 @@
     <canvas id="debugCanvas" width="256" height="256" style="display:none;margin-top:5px;"></canvas>
   </div>
   <div id="stats">
-    <div>Durchschnittlicher Score: <span id="avgScore">0</span></div>
     <div>High: <span id="highCount">0</span></div>
     <div>Low: <span id="lowCount">0</span></div>
     <div>Transfers: <span id="transferCount">0</span></div>
@@ -40,7 +39,9 @@
 <div id="controls">
   <label>Würmchen: <input type="range" id="wormCount" min="100" max="5000" value="3000"><span id="wormCountVal"></span></label>
   <label>Mutationsrate: <input type="range" id="mutationRate" min="0" max="0.01" step="0.0001" value="0.001"><span id="mutationRateVal"></span></label>
-  <label>Transferanteil: <input type="range" id="transferFraction" min="0" max="1" step="0.01" value="0.1"><span id="transferFractionVal"></span></label>
+  <label>Transferanteil: <input type="range" id="transferFraction" min="0" max="1" step="0.01" value="0.9"><span id="transferFractionVal"></span></label>
+  <label>Low Threshold: <input type="range" id="lowThreshold" min="0.1" max="0.4" step="0.01" value="0.1"><span id="lowThresholdVal"></span></label>
+  <label>High Threshold: <input type="range" id="highThreshold" min="0.6" max="0.9" step="0.01" value="0.9"><span id="highThresholdVal"></span></label>
   <label>Geschwindigkeit: <input type="range" id="simSpeed" min="1" max="5" step="1" value="1"><span id="simSpeedVal"></span></label>
   <button id="restart">Neu starten</button>
 </div>
@@ -57,9 +58,11 @@
     wormCount: document.getElementById('wormCountVal'),
     mutationRate: document.getElementById('mutationRateVal'),
     transferFraction: document.getElementById('transferFractionVal'),
+    lowThreshold: document.getElementById('lowThresholdVal'),
+    highThreshold: document.getElementById('highThresholdVal'),
     simSpeed: document.getElementById('simSpeedVal')
   };
-  ['wormCount','mutationRate','transferFraction','simSpeed'].forEach(id=>{
+  ['wormCount','mutationRate','transferFraction','lowThreshold','highThreshold','simSpeed'].forEach(id=>{
     const input=document.getElementById(id);
     const span=valueElems[id];
     function update(){span.textContent=input.value;}
@@ -83,6 +86,8 @@
     const count = parseInt(document.getElementById('wormCount').value,10);
     const mutation = parseFloat(document.getElementById('mutationRate').value);
     const transfer = parseFloat(document.getElementById('transferFraction').value);
+    const low = parseFloat(document.getElementById('lowThreshold').value);
+    const high = parseFloat(document.getElementById('highThreshold').value);
     const speed = parseInt(document.getElementById('simSpeed').value,10);
     worms = [];
     transferCount = 0;
@@ -90,7 +95,7 @@
       worms.push(createWorm(i));
     }
     tailMap = new Map();
-    window.simParams = {mutation,transfer,speed};
+    window.simParams = {mutation,transfer,speed,low,high};
   }
   function createWorm(index){
     const w={};
@@ -171,8 +176,8 @@
       const other=worms[coll];
       w.score=Math.min(1,w.score+0.02);
       other.score=Math.max(0,other.score-0.02);
-      if(w.score>0.9&&other.score<0.1) transferProgram(w,other);
-      else if(w.score<0.1&&other.score>0.9) transferProgram(other,w);
+      if(w.score>window.simParams.high&&other.score<window.simParams.low) transferProgram(w,other);
+      else if(w.score<window.simParams.low&&other.score>window.simParams.high) transferProgram(other,w);
     }
     w.tailX=w.x;w.tailY=w.y;
     w.x=nx;w.y=ny;
@@ -216,29 +221,27 @@
   function draw(){
     ctx.clearRect(0,0,SIZE,SIZE);
     for(const w of worms){
-      const color=w.score>0.9?'red':'green';
+      const color=w.score>window.simParams.high?'orange':'green';
       ctx.fillStyle=color;
       const x=Math.round(w.x);const y=Math.round(w.y);
       const tx=Math.round(w.tailX);const ty=Math.round(w.tailY);
       if(w.dir%2===0){ // horizontal
         ctx.fillRect(tx, ty,2,1);
-        ctx.fillStyle=w.score>0.9?'red':'turquoise';
+        ctx.fillStyle=w.score>window.simParams.high?'orange':'turquoise';
         ctx.fillRect(x, y,1,1);
       }else{ // vertical
         ctx.fillRect(tx, ty,1,2);
-        ctx.fillStyle=w.score>0.9?'red':'turquoise';
+        ctx.fillStyle=w.score>window.simParams.high?'orange':'turquoise';
         ctx.fillRect(x, y,1,1);
       }
     }
   }
   function updateStats(){
-    let high=0,low=0,total=0;
+    let high=0,low=0;
     for(const w of worms){
-      total+=w.score;
-      if(w.score>0.9) high++;
-      if(w.score<0.1) low++;
+      if(w.score>window.simParams.high) high++;
+      if(w.score<window.simParams.low) low++;
     }
-    document.getElementById('avgScore').textContent=(total/worms.length).toFixed(3);
     document.getElementById('highCount').textContent=high;
     document.getElementById('lowCount').textContent=low;
     document.getElementById('transferCount').textContent=transferCount;
