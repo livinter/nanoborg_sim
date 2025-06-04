@@ -50,4 +50,4 @@ Wenn ein Wurm im HIGH-Modus ist, soll er durch rote Farbe ersichtlich sein. Auß
 
 nach einem programm transfer das "low" wuermchen auf eine neue random position setzen
 
-der Programmcode-Transfer soll nur vom high wuermche zum low wuermchen geschehen die sich getroffenn haben also 1 zu 1
+der Programmcode-Transfer soll nur vom high wuermche zum low wuermchen geschehen die sich getroffenn haben also 1 zu 1# nanoborg_sim
