@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Nanoborg Simulation</title>
+<style>
+  canvas {
+    border: 1px solid blue;
+    background: white;
+  }
+  #controls {
+    margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="256" height="256"></canvas>
+<div id="controls">
+  <label>Würmchen: <input type="range" id="wormCount" min="100" max="5000" value="3000"></label>
+  <label>Mutationsrate: <input type="range" id="mutationRate" min="0" max="0.01" step="0.0001" value="0.001"></label>
+  <label>Transferanteil: <input type="range" id="transferFraction" min="0" max="0.2" step="0.01" value="0.1"></label>
+  <button id="restart">Neu starten</button>
+</div>
+<script>
+(function(){
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const SIZE = 256;
+  const DIRS = [
+    [1,0],
+    [0,1],
+    [-1,0],
+    [0,-1]
+  ];
+  let worms = [];
+  let tailMap;
+  function randInt(max){return Math.floor(Math.random()*max);}
+  function randFloat(min,max){return Math.random()*(max-min)+min;}
+  function reset(){
+    const count = parseInt(document.getElementById('wormCount').value,10);
+    const mutation = parseFloat(document.getElementById('mutationRate').value);
+    const transfer = parseFloat(document.getElementById('transferFraction').value);
+    worms = [];
+    for(let i=0;i<count;i++){
+      worms.push(createWorm(i));
+    }
+    tailMap = new Map();
+    window.simParams = {mutation,transfer};
+  }
+  function createWorm(index){
+    const w={};
+    w.x=randInt(SIZE);
+    w.y=randInt(SIZE);
+    w.tailX=w.x;
+    w.tailY=w.y;
+    w.dir=randInt(4);
+    w.data=new Float32Array(32);
+    w.program=[];
+    w.score=0.5;
+    w.data[0]=1.0;
+    w.data[1]=0.0;
+    w.data[2]=-1.0;
+    for(let i=9;i<=29;i++) w.data[i]=randFloat(-1,1);
+    for(let i=0;i<32;i++){
+      w.program.push({
+        alpha:Math.random(),
+        src1:randInt(30),
+        src2:randInt(30),
+        dst:9+randInt(23)
+      });
+    }
+    return w;
+  }
+  function sense(w){
+    const fDir=DIRS[w.dir];
+    const rDir=DIRS[(w.dir+1)%4];
+    const lDir=DIRS[(w.dir+3)%4];
+    const fx=w.x+fDir[0], fy=w.y+fDir[1];
+    const rx=w.x+rDir[0], ry=w.y+rDir[1];
+    const lx=w.x+lDir[0], ly=w.y+lDir[1];
+    const fKey=`${fx},${fy}`;
+    const rKey=`${rx},${ry}`;
+    const lKey=`${lx},${ly}`;
+    w.data[6]=(fx<0||fx>=SIZE||fy<0||fy>=SIZE)?1:0;
+    w.data[7]=(rx<0||rx>=SIZE||ry<0||ry>=SIZE)?1:0;
+    w.data[8]=(lx<0||lx>=SIZE||ly<0||ly>=SIZE)?1:0;
+    function senseCell(key){
+      if(!tailMap.has(key)) return 0;
+      const id=tailMap.get(key);
+      if(id===undefined) return 0;
+      const other=worms[id];
+      return other.tailX===other.x && other.tailY===other.y?0:1; // simplistic
+    }
+    w.data[3]=senseCell(fKey);
+    w.data[4]=senseCell(rKey);
+    w.data[5]=senseCell(lKey);
+  }
+  function executeProgram(w){
+    const d=w.data;
+    for(const ins of w.program){
+      d[ins.dst]+=ins.alpha*(d[ins.src1]*d[ins.src2]-d[ins.dst]);
+    }
+  }
+  function move(w){
+    if(w.data[31]>0) w.dir=(w.dir+1)%4;
+    else if(w.data[31]<0) w.dir=(w.dir+3)%4;
+    let nx=w.x,ny=w.y;
+    if(w.data[30]>0){
+      nx+=DIRS[w.dir][0];
+      ny+=DIRS[w.dir][1];
+    }
+    if(nx<0||nx>=SIZE||ny<0||ny>=SIZE){
+      nx=w.x;ny=w.y;
+    }
+    const key=`${nx},${ny}`;
+    const coll=tailMap.get(key);
+    if(coll!==undefined&&coll!==w.index){
+      const other=worms[coll];
+      w.score=Math.min(1,w.score+0.02);
+      other.score=Math.max(0,other.score-0.02);
+      if(w.score>0.9&&other.score<0.1) transferProgram(w,other);
+      else if(w.score<0.1&&other.score>0.9) transferProgram(other,w);
+    }
+    w.tailX=w.x;w.tailY=w.y;
+    w.x=nx;w.y=ny;
+  }
+  function transferProgram(from,to){
+    const fraction=window.simParams.transfer;
+    const countProg=Math.floor(from.program.length*fraction);
+    for(let i=0;i<countProg;i++){
+      const idx=randInt(from.program.length);
+      to.program[idx]=Object.assign({},from.program[idx]);
+      if(Math.random()<window.simParams.mutation){
+        to.program[idx]={alpha:Math.random(),src1:randInt(30),src2:randInt(30),dst:9+randInt(23)};
+      }
+    }
+    const countData=Math.floor((32-2)*fraction);
+    for(let i=0;i<countData;i++){
+      const idx=2+randInt(30);
+      to.data[idx]=from.data[idx];
+      if(Math.random()<window.simParams.mutation && idx>=9 && idx<=29){
+        to.data[idx]=randFloat(-1,1);
+      }
+    }
+    to.x=randInt(SIZE);to.y=randInt(SIZE);to.tailX=to.x;to.tailY=to.y;
+  }
+  function draw(){
+    ctx.clearRect(0,0,SIZE,SIZE);
+    for(const w of worms){
+      const color=w.score>0.9?'red':'green';
+      ctx.fillStyle=color;
+      if(w.dir%2===0){ // horizontal
+        ctx.fillRect(w.tailX, w.tailY,2,1);
+        ctx.fillStyle=w.score>0.9?'red':'turquoise';
+        ctx.fillRect(w.x, w.y,1,1);
+      }else{ // vertical
+        ctx.fillRect(w.tailX, w.tailY,1,2);
+        ctx.fillStyle=w.score>0.9?'red':'turquoise';
+        ctx.fillRect(w.x, w.y,1,1);
+      }
+    }
+  }
+  function step(){
+    tailMap=new Map();
+    worms.forEach((w,i)=>{w.index=i;tailMap.set(`${w.tailX},${w.tailY}`,i);});
+    for(const w of worms){
+      sense(w);
+    }
+    for(const w of worms){
+      executeProgram(w);
+      move(w);
+    }
+    draw();
+    requestAnimationFrame(step);
+  }
+  document.getElementById('restart').addEventListener('click',reset);
+  reset();
+  requestAnimationFrame(step);
+})();
+</script>
+</body>
+</html>
