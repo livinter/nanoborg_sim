@@ -34,6 +34,8 @@
   ];
   let worms = [];
   let tailMap;
+  let headMap;
+  let stepCounter = 0;
   function randInt(max){return Math.floor(Math.random()*max);}
   function randFloat(min,max){return Math.random()*(max-min)+min;}
   function reset(){
@@ -84,16 +86,17 @@
     w.data[6]=(fx<0||fx>=SIZE||fy<0||fy>=SIZE)?1:0;
     w.data[7]=(rx<0||rx>=SIZE||ry<0||ry>=SIZE)?1:0;
     w.data[8]=(lx<0||lx>=SIZE||ly<0||ly>=SIZE)?1:0;
-    function senseCell(key){
-      if(!tailMap.has(key)) return 0;
-      const id=tailMap.get(key);
-      if(id===undefined) return 0;
-      const other=worms[id];
-      return other.tailX===other.x && other.tailY===other.y?0:1; // simplistic
+    function senseCell(key, selfIdx){
+      let val = 0;
+      const hId = headMap.get(key);
+      if(hId !== undefined && hId !== selfIdx) val = -1;
+      const tId = tailMap.get(key);
+      if(tId !== undefined && tId !== selfIdx && val === 0) val = 1;
+      return val;
     }
-    w.data[3]=senseCell(fKey);
-    w.data[4]=senseCell(rKey);
-    w.data[5]=senseCell(lKey);
+    w.data[3]=senseCell(fKey, w.index);
+    w.data[4]=senseCell(rKey, w.index);
+    w.data[5]=senseCell(lKey, w.index);
   }
   function executeProgram(w){
     const d=w.data;
@@ -162,7 +165,12 @@
   }
   function step(){
     tailMap=new Map();
-    worms.forEach((w,i)=>{w.index=i;tailMap.set(`${w.tailX},${w.tailY}`,i);});
+    headMap=new Map();
+    worms.forEach((w,i)=>{
+      w.index=i;
+      tailMap.set(`${w.tailX},${w.tailY}`,i);
+      headMap.set(`${w.x},${w.y}`,i);
+    });
     for(const w of worms){
       sense(w);
     }
@@ -171,6 +179,19 @@
       move(w);
     }
     draw();
+    stepCounter++;
+    if(stepCounter===10){
+      let high=0,low=0,total=0;
+      for(const w of worms){
+        total+=w.score;
+        if(w.score>0.9) high++;
+        if(w.score<0.1) low++;
+      }
+      console.log('Stats after 10 steps:',
+        'avgScore', (total/worms.length).toFixed(3),
+        'high', high,
+        'low', low);
+    }
     requestAnimationFrame(step);
   }
   document.getElementById('restart').addEventListener('click',reset);
