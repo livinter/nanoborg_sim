@@ -12,9 +12,12 @@
     display: flex;
     align-items: flex-start;
   }
-  #controls {
-    margin-top: 10px;
-  }
+    #controls {
+      margin-top: 10px;
+    }
+    #controls label {
+      display: block;
+    }
   #stats {
     margin-left: 10px;
     font-family: sans-serif;
@@ -28,6 +31,7 @@
     <div>Durchschnittlicher Score: <span id="avgScore">0</span></div>
     <div>High: <span id="highCount">0</span></div>
     <div>Low: <span id="lowCount">0</span></div>
+    <div>Transfers: <span id="transferCount">0</span></div>
   </div>
 </div>
 <div id="controls">
@@ -66,6 +70,7 @@
   let tailMap;
   let headMap;
   let stepCounter = 0;
+  let transferCount = 0;
   function randInt(max){return Math.floor(Math.random()*max);}
   function randFloat(min,max){return Math.random()*(max-min)+min;}
   function reset(){
@@ -74,6 +79,7 @@
     const transfer = parseFloat(document.getElementById('transferFraction').value);
     const speed = parseInt(document.getElementById('simSpeed').value,10);
     worms = [];
+    transferCount = 0;
     for(let i=0;i<count;i++){
       worms.push(createWorm(i));
     }
@@ -82,11 +88,12 @@
   }
   function createWorm(index){
     const w={};
-    w.x=randInt(SIZE);
-    w.y=randInt(SIZE);
+    w.x=randFloat(0,SIZE);
+    w.y=randFloat(0,SIZE);
     w.tailX=w.x;
     w.tailY=w.y;
     w.dir=randInt(4);
+    w.dirAngle=w.dir;
     w.data=new Float32Array(32);
     w.program=[];
     w.score=0.5;
@@ -105,12 +112,14 @@
     return w;
   }
   function sense(w){
+    const baseX=Math.round(w.x);
+    const baseY=Math.round(w.y);
     const fDir=DIRS[w.dir];
     const rDir=DIRS[(w.dir+1)%4];
     const lDir=DIRS[(w.dir+3)%4];
-    const fx=w.x+fDir[0], fy=w.y+fDir[1];
-    const rx=w.x+rDir[0], ry=w.y+rDir[1];
-    const lx=w.x+lDir[0], ly=w.y+lDir[1];
+    const fx=baseX+fDir[0], fy=baseY+fDir[1];
+    const rx=baseX+rDir[0], ry=baseY+rDir[1];
+    const lx=baseX+lDir[0], ly=baseY+lDir[1];
     const fKey=`${fx},${fy}`;
     const rKey=`${rx},${ry}`;
     const lKey=`${lx},${ly}`;
@@ -136,17 +145,21 @@
     }
   }
   function move(w){
-    if(w.data[31]>0) w.dir=(w.dir+1)%4;
-    else if(w.data[31]<0) w.dir=(w.dir+3)%4;
+    if(w.data[31]!==0){
+      w.dirAngle+=w.data[31];
+      w.dirAngle=((w.dirAngle%4)+4)%4;
+    }
+    w.dir=Math.round(w.dirAngle)&3;
+    const step=Math.max(0,w.data[30]);
     let nx=w.x,ny=w.y;
-    if(w.data[30]>0){
-      nx+=DIRS[w.dir][0];
-      ny+=DIRS[w.dir][1];
+    if(step>0){
+      nx+=DIRS[w.dir][0]*step;
+      ny+=DIRS[w.dir][1]*step;
     }
     if(nx<0||nx>=SIZE||ny<0||ny>=SIZE){
       nx=w.x;ny=w.y;
     }
-    const key=`${nx},${ny}`;
+    const key=`${Math.round(nx)},${Math.round(ny)}`;
     const coll=tailMap.get(key);
     if(coll!==undefined&&coll!==w.index){
       const other=worms[coll];
@@ -160,6 +173,7 @@
   }
   function transferProgram(from,to){
     const fraction=window.simParams.transfer;
+    transferCount++;
     const countProg=Math.floor(from.program.length*fraction);
     for(let i=0;i<countProg;i++){
       const idx=randInt(from.program.length);
@@ -176,21 +190,24 @@
         to.data[idx]=randFloat(-1,1);
       }
     }
-    to.x=randInt(SIZE);to.y=randInt(SIZE);to.tailX=to.x;to.tailY=to.y;
+    to.x=randFloat(0,SIZE);to.y=randFloat(0,SIZE);to.tailX=to.x;to.tailY=to.y;
+    to.dirAngle=to.dir;
   }
   function draw(){
     ctx.clearRect(0,0,SIZE,SIZE);
     for(const w of worms){
       const color=w.score>0.9?'red':'green';
       ctx.fillStyle=color;
+      const x=Math.round(w.x);const y=Math.round(w.y);
+      const tx=Math.round(w.tailX);const ty=Math.round(w.tailY);
       if(w.dir%2===0){ // horizontal
-        ctx.fillRect(w.tailX, w.tailY,2,1);
+        ctx.fillRect(tx, ty,2,1);
         ctx.fillStyle=w.score>0.9?'red':'turquoise';
-        ctx.fillRect(w.x, w.y,1,1);
+        ctx.fillRect(x, y,1,1);
       }else{ // vertical
-        ctx.fillRect(w.tailX, w.tailY,1,2);
+        ctx.fillRect(tx, ty,1,2);
         ctx.fillStyle=w.score>0.9?'red':'turquoise';
-        ctx.fillRect(w.x, w.y,1,1);
+        ctx.fillRect(x, y,1,1);
       }
     }
   }
@@ -204,14 +221,15 @@
     document.getElementById('avgScore').textContent=(total/worms.length).toFixed(3);
     document.getElementById('highCount').textContent=high;
     document.getElementById('lowCount').textContent=low;
+    document.getElementById('transferCount').textContent=transferCount;
   }
   function stepOnce(){
     tailMap=new Map();
     headMap=new Map();
     worms.forEach((w,i)=>{
       w.index=i;
-      tailMap.set(`${w.tailX},${w.tailY}`,i);
-      headMap.set(`${w.x},${w.y}`,i);
+      tailMap.set(`${Math.round(w.tailX)},${Math.round(w.tailY)}`,i);
+      headMap.set(`${Math.round(w.x)},${Math.round(w.y)}`,i);
     });
     for(const w of worms){
       sense(w);
